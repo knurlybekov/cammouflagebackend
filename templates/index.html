@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Upload → Background + 3D Model (Sketchfab embed, CORS-safe)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --brand:#003e51;--accent:#00b0b9;--bg:#f7f9fb;--card:#ffffff;--text:#1f2937;--muted:#6b7280;
+      --radius:14px;--shadow:0 6px 20px rgba(0,0,0,0.08);--vspace:24px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--text);background:var(--bg);line-height:1.5}
+    header{background:linear-gradient(135deg,var(--brand),#02546b);color:#fff;padding:28px 20px}
+    .container{max-width:1060px;margin:0 auto;padding:0 20px}
+    header h1{margin:0 0 6px;font-weight:700;letter-spacing:.2px}
+    header p{margin:0;opacity:.9}
+
+    .uploader{margin:28px auto 10px;background:var(--card);border:2px dashed #cfe6ea;border-radius:var(--radius);
+      padding:28px;text-align:center;transition:border-color .2s,background .2s;box-shadow:var(--shadow)}
+    .uploader.dragover{border-color:var(--accent);background:#f0fbfc}
+    .uploader h2{margin:4px 0 10px;font-size:1.15rem}
+    .uploader p{margin:0 0 14px;color:var(--muted)}
+    .controls{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+    .file-label,.btn{appearance:none;border:none;cursor:pointer;background:var(--accent);color:#082226;font-weight:700;
+      padding:12px 18px;border-radius:999px;transition:transform .06s,opacity .2s;box-shadow:0 2px 0 rgba(0,0,0,.08)}
+    .file-label:active,.btn:active{transform:translateY(1px)}
+    .btn[disabled]{opacity:.6;cursor:not-allowed}
+    .file-input{display:none}
+    .text-input{min-width:260px;border-radius:999px;border:1px solid #d7e6ea;background:#f9fdfe;padding:12px 16px;outline:none;font-size:.98rem}
+    .text-input:focus{border-color:var(--accent);background:#fff}
+
+    .action-bar{display:flex;justify-content:center;align-items:center;gap:12px;margin:12px 0 var(--vspace)}
+    #status{margin:0;color:var(--muted)}
+
+    section{scroll-margin-top:80px}
+    .section-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px;margin-bottom:var(--vspace)}
+    .section-card h2{margin:0 0 14px;font-size:1.25rem;color:var(--brand);letter-spacing:.2px}
+    .hint{color:var(--muted);margin:0 0 16px}
+
+    .preview-img{width:100%;max-height:420px;object-fit:contain;background:#eef4f6;border:1px solid #e2eaee;border-radius:12px;display:block}
+    .center{display:flex;justify-content:center}
+    .center .btn{margin-top:12px}
+
+    section#products{padding:0 0 60px}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+    @media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:560px){.grid{grid-template-columns:1fr}}
+    .card{border:1px solid #eef2f4;border-radius:12px;overflow:hidden;background:#fff;transition:transform .12s,box-shadow .12s}
+    .card:hover{transform:translateY(-2px);box-shadow:0 12px 24px rgba(0,0,0,.08)}
+    .card img{display:block;width:100%;height:180px;object-fit:cover;background:#e9eef0}
+    .card .meta{padding:10px 12px 14px}
+    .card .title{margin:0 0 2px;font-weight:700}
+    .card .sku{margin:0;color:var(--muted);font-size:.9rem}
+    .hidden{display:none!important}
+
+    .card[data-slot="uploaded-bg"] .stage{position:relative;width:100%;height:220px;border-bottom:1px solid #eef2f4;overflow:hidden;background:#fff}
+    .card[data-slot="uploaded-bg"] .bg{position:absolute;inset:0;background-size:cover;background-position:center;background-repeat:no-repeat}
+    .card[data-slot="uploaded-bg"] .three{position:absolute;inset:0}
+    .card[data-slot="uploaded-bg"] .three iframe{width:100%!important;height:100%!important;display:block;border:0}
+
+    /* tiny log panel for debugging */
+    #log{font-family:ui-monospace,Menlo,Consolas,monospace;background:#0b1020;color:#c7e1ff;padding:10px;border-radius:8px;max-height:160px;overflow:auto}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>Image → Background + 3D Model</h1>
+      <p>Choose an image, click “Upload & Preview”, then “See the products.” The first card shows your image as the background with a 3D model on top.</p>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Uploader -->
+    <div id="uploader" class="uploader" tabindex="0" aria-label="Image uploader">
+      <h2>Drop your image here</h2>
+      <p>PNG or JPG works great. You can also use the “Choose image” button.</p>
+      <div class="controls">
+        <label class="file-label" for="file-input">Choose image</label>
+        <input id="file-input" class="file-input" type="file" accept="image/*" />
+        <input id="captionInput" class="text-input" type="text" placeholder="Caption (optional)" />
+      </div>
+      <p id="fileName" class="hint">No file selected yet.</p>
+    </div>
+
+    <!-- Action bar -->
+    <div class="action-bar">
+      <button id="generateBtn" class="btn" disabled>Upload & Preview</button>
+      <p id="status" class="hint" aria-live="polite"></p>
+    </div>
+
+    <!-- Preview -->
+    <section id="preview" class="hidden">
+      <div class="section-card">
+        <h2>Your image</h2>
+        <p class="hint">If it’s not right, pick a new file above and click “Upload & Preview” again.</p>
+        <img id="userPreview" class="preview-img" alt="User uploaded preview" />
+        <div class="center"><button id="seeProductsBtn" class="btn">See the products</button></div>
+        <pre id="log"></pre>
+      </div>
+    </section>
+
+    <!-- Products -->
+    <section id="products" class="hidden">
+      <div class="section-card">
+        <h2>See the products</h2>
+        <p class="hint">The first card uses your uploaded image as background and textures the model with it.</p>
+
+        <div class="grid" id="productGrid">
+          <!-- SPECIAL CARD -->
+          <article class="card" data-slot="uploaded-bg" aria-live="polite">
+            <div class="stage">
+              <div class="bg" role="img" aria-label="Background from your uploaded image"></div>
+              <div id="container3D" class="three" aria-hidden="true">
+                <iframe
+                  id="skfb-iframe"
+                  title="Man In EC Suit"
+                  frameborder="0"
+                  allow="autoplay; fullscreen; xr-spatial-tracking"
+                  mozallowfullscreen="true"
+                  webkitallowfullscreen="true"
+                  allowfullscreen
+                  src="https://sketchfab.com/models/c88bf5d838364bc1946b886e390d2cc6/embed?api=1&transparent=1&ui_infos=0&ui_settings=0">
+                </iframe>
+              </div>
+            </div>
+            <div class="meta">
+              <p class="title">Your uploaded background + 3D</p>
+              <p class="sku">BG-SLOT</p>
+            </div>
+          </article>
+
+          <!-- Example cards -->
+          <article class="card">
+            <img src="https://placehold.co/600x400?text=Product+2" alt="Product 2">
+            <div class="meta"><p class="title">Product 2</p><p class="sku">SKU-002</p></div>
+          </article>
+          <article class="card">
+            <img src="https://placehold.co/600x400?text=Product+3" alt="Product 3">
+            <div class="meta"><p class="title">Product 3</p><p class="sku">SKU-003</p></div>
+          </article>
+          <article class="card">
+            <img src="https://placehold.co/600x400?text=Product+4" alt="Product 4">
+            <div class="meta"><p class="title">Product 4</p><p class="sku">SKU-004</p></div>
+          </article>
+          <article class="card">
+            <img src="https://placehold.co/600x400?text=Product+5" alt="Product 5">
+            <div class="meta"><p class="title">Product 5</p><p class="sku">SKU-005</p></div>
+          </article>
+          <article class="card">
+            <img src="https://placehold.co/600x400?text=Product+6" alt="Product 6">
+            <div class="meta"><p class="title">Product 6</p><p class="sku">SKU-006</p></div>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Uploader logic -->
+  <script>
+    const UPLOAD_URL = "/media_upload/";
+
+    const dropArea = document.getElementById('uploader');
+    const fileInput = document.getElementById('file-input');
+    const captionInput = document.getElementById('captionInput');
+    const fileName = document.getElementById('fileName');
+    const statusEl = document.getElementById('status');
+
+    const generateBtn = document.getElementById('generateBtn');
+    const preview = document.getElementById('preview');
+    const userPreview = document.getElementById('userPreview');
+    const seeProductsBtn = document.getElementById('seeProductsBtn');
+    const products = document.getElementById('products');
+
+    const uploadedBgPane = document.querySelector('[data-slot="uploaded-bg"] .bg');
+    const log = (msg)=>{ const el=document.getElementById('log'); el.textContent += msg + "\\n"; };
+
+    let selectedFile = null;
+    let currentObjectURL = null;
+    let dataURL = null; // data:image/...;base64,...
+
+    function getCookie(name){
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if(parts.length===2) return parts.pop().split(';').shift();
+    }
+    function setStatus(msg, ok=true){
+      statusEl.textContent = msg || "";
+      statusEl.style.color = ok ? "var(--muted)" : "#b00020";
+    }
+
+    function fileToDataURL(file){
+      return new Promise((resolve,reject)=>{
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function setFile(file){
+      if(!file) return;
+      if(file.type && !file.type.startsWith('image/')){
+        fileName.textContent = 'Please choose an image file (PNG/JPG).';
+        selectedFile = null; generateBtn.disabled = true; return;
+      }
+      selectedFile = file;
+      fileName.textContent = `Selected: ${file.name}`;
+      generateBtn.disabled = false;
+
+      // Generate data URL *now* (so we can use it for Sketchfab setTexture)
+      dataURL = await fileToDataURL(file);
+      log("Prepared data URL for texture (length: " + dataURL.length + ")");
+    }
+
+    function localPreview(file){
+      try{
+        if(currentObjectURL) URL.revokeObjectURL(currentObjectURL);
+        currentObjectURL = URL.createObjectURL(file);
+        userPreview.src = currentObjectURL;
+      }catch{
+        if(dataURL) userPreview.src = dataURL;
+      }
+      preview.classList.remove('hidden');
+      preview.scrollIntoView({behavior:'smooth'});
+    }
+
+    function applyBackground(url){
+      if(!url) return;
+      uploadedBgPane.style.backgroundImage = `url("${url}")`;
+    }
+
+    async function uploadSelectedFile(){
+      if(!selectedFile) throw new Error("No file selected.");
+      const fd = new FormData();
+      fd.append("image", selectedFile);
+      fd.append("caption", (captionInput.value || "").trim());
+
+      const headers = {};
+      const csrf = getCookie("csrftoken");
+      if(csrf) headers["X-CSRFToken"] = csrf;
+
+      const res = await fetch(UPLOAD_URL, { method:"POST", body:fd, headers });
+      const json = await res.json().catch(()=>({}));
+
+      if(!res.ok){
+        const msg = json?.message ? JSON.stringify(json.message) : `Upload failed (${res.status})`;
+        throw new Error(msg);
+      }
+      const uploadedUrl =
+        (json?.data && (json.data.image || json.data.file || json.data.url)) ||
+        json.image || json.file || json.url;
+
+      if(!uploadedUrl) throw new Error("Upload succeeded but no image URL was returned.");
+      return uploadedUrl;
+    }
+
+    // choose/drag/drop
+    fileInput.addEventListener('change', (e)=> setFile(e.target.files[0]));
+    ['dragenter','dragover'].forEach((evt)=> {
+      dropArea.addEventListener(evt,(e)=>{ e.preventDefault(); e.stopPropagation(); dropArea.classList.add('dragover'); });
+    });
+    ['dragleave','drop'].forEach((evt)=> {
+      dropArea.addEventListener(evt,(e)=>{ e.preventDefault(); e.stopPropagation(); dropArea.classList.remove('dragover'); });
+    });
+    dropArea.addEventListener('drop', async (e)=>{
+      const file = e.dataTransfer.files && e.dataTransfer.files[0];
+      if(file && file.type.startsWith('image/')) await setFile(file);
+      else fileName.textContent = 'Please drop an image file (PNG/JPG).';
+    });
+
+    // Upload & Preview
+    generateBtn.addEventListener('click', async ()=>{
+      if(!selectedFile){ fileName.textContent = 'Please choose an image file first.'; return; }
+
+      // 1) Local preview
+      localPreview(selectedFile);
+
+      // 2) Texture the model with DATA URL (CORS-safe)
+      if(window.updateModelTexture && dataURL){
+        log("updateModelTexture(dataURL) → sending data URI");
+        window.updateModelTexture(dataURL);
+      } else {
+        log("No dataURL or API not ready yet.");
+      }
+
+      // 3) Upload to server (optional) and use server URL ONLY for the background
+      try{
+        setStatus("Uploading…");
+        const serverURL = await uploadSelectedFile();
+        setStatus("✅ Uploaded!");
+        applyBackground(serverURL); // ★ background can use your server URL
+        // DO NOT call updateModelTexture(serverURL); that would trigger CORS/S3 fetch.
+      }catch(err){
+        setStatus(`❌ ${err.message}`, false);
+      }
+    });
+
+    // show product grid
+    seeProductsBtn.addEventListener('click', ()=>{
+      products.classList.remove('hidden');
+      products.scrollIntoView({behavior:'smooth'});
+    });
+  </script>
+
+  <!-- Sketchfab Viewer API -->
+  <script src="https://static.sketchfab.com/api/sketchfab-viewer-1.12.1.js"></script>
+  <script>
+    const MODEL_UID = "c88bf5d838364bc1946b886e390d2cc6";
+    const iframe = document.getElementById('skfb-iframe');
+
+    const client = new Sketchfab(iframe);
+    let api = null;
+    let baseColorTexUID = null;
+
+    client.init(MODEL_UID, {
+      autostart: 1,
+      ui_infos: 0,
+      ui_controls: 1,
+      ui_settings: 0,
+      transparent: 1,
+      success(viewerAPI){
+        api = viewerAPI;
+        api.start();
+        api.addEventListener('viewerready', function () {
+          api.getMaterialList(function(err, mats){
+            if (err || !mats) return;
+            // Find first Albedo/BaseColor texture slot
+            for (const m of mats){
+              const ch = m.channels && m.channels.AlbedoPBR;
+              if (ch && ch.texture && ch.texture.uid){ baseColorTexUID = ch.texture.uid; break; }
+            }
+          });
+        });
+      },
+      error(){ console.error("Failed to initialize Sketchfab viewer."); }
+    });
+
+    // Swap the texture image (MUST be a data URL to avoid S3/CORS issues during local dev)
+    window.updateModelTexture = function(urlOrData){
+      if(!api || !baseColorTexUID || !urlOrData) return;
+      console.log("Sketchfab setTexture payload:", urlOrData.slice(0,64) + "…"); // verify it starts with data:image/
+      api.setTexture(baseColorTexUID, urlOrData, function(err){
+        if(err) console.error("setTexture error:", err);
+      });
+    };
+  </script>
+</body>
+</html>
