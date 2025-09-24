@@ -1,0 +1,68 @@
+{
+    "compatibilities": [
+        "EC2",
+        "FARGATE"
+    ],
+    "containerDefinitions": [
+        {
+            "cpu": 0,
+            "environment": [],
+            "environmentFiles": [],
+            "essential": true,
+            "image": "https://github.com/knurlybekov/cammouflagebackend",
+            "mountPoints": [],
+            "name": "cammo",
+            "portMappings": [
+                {
+                    "containerPort": 80,
+                    "hostPort": 80,
+                    "name": "cammo-80-tcp",
+                    "protocol": "tcp"
+                },
+                {
+                    "containerPort": 443,
+                    "hostPort": 443,
+                    "name": "cammo-443-tcp",
+                    "protocol": "tcp"
+                },
+                {
+                    "containerPort": 5432,
+                    "hostPort": 5432,
+                    "name": "cammo-5432-tcp",
+                    "protocol": "tcp"
+                }
+            ],
+            "systemControls": [],
+            "volumesFrom": []
+        }
+    ],
+    "cpu": "1024",
+    "enableFaultInjection": false,
+    "executionRoleArn": "arn:aws:iam::981425615291:role/ecsTaskExecutionRole",
+    "family": "cammouflage_task",
+    "memory": "3072",
+    "networkMode": "awsvpc",
+    "placementConstraints": [],
+    "registeredAt": "2025-09-24T12:12:32.032Z",
+    "registeredBy": "arn:aws:iam::981425615291:user/adminkaren",
+    "requiresAttributes": [
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.18"
+        },
+        {
+            "name": "ecs.capability.task-eni"
+        }
+    ],
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "revision": 1,
+    "runtimePlatform": {
+        "cpuArchitecture": "ARM64",
+        "operatingSystemFamily": "LINUX"
+    },
+    "status": "ACTIVE",
+    "taskDefinitionArn": "arn:aws:ecs:us-west-1:981425615291:task-definition/cammouflage_task:1",
+    "volumes": [],
+    "tags": []
+}
