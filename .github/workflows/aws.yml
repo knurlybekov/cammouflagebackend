@@ -35,7 +35,7 @@ env:
   ECR_REPOSITORY: cammouflagebackend           # set this to your Amazon ECR repository name
   ECS_SERVICE: cammouflage_task-service-uw6az5mi                 # set this to your Amazon ECS service name
   ECS_CLUSTER: imaginary-bear-kpb0qr                 # set this to your Amazon ECS cluster name
-  ECS_TASK_DEFINITION: ./aws/cammouflage_task-revision1.json # set this to the path to your Amazon ECS task definition
+  ECS_TASK_DEFINITION: /cammouflage_task-revision1.json # set this to the path to your Amazon ECS task definition
                                                # file, e.g. .aws/task-definition.json
   CONTAINER_NAME: cammo           # set this to the name of the container in the
                                                # containerDefinitions section of your task definition
