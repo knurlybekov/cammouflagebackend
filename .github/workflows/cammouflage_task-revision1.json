@@ -37,7 +37,7 @@
         }
     ],
     "cpu": "1024",
-    
+    "enableFaultInjection": false,
     "executionRoleArn": "arn:aws:iam::981425615291:role/ecsTaskExecutionRole",
     "family": "cammouflage_task",
     "memory": "3072",
